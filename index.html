@@ -1847,6 +1847,7 @@ function renderOwnerLogin(msg,bad){
     <label>Email<input id="ob-email" type="email" autocomplete="username" value="${escH(em)}"></label>
     <label>Password<input id="ob-pass" type="password" autocomplete="current-password"></label>
     <button class="btn primary" data-act="ob-login-go" id="ob-go">Sign in</button>
+    <button class="ghost" data-act="ob-forgot" style="justify-self:start">Forgot password?</button>
     <p id="ob-msg" class="foot" aria-live="polite" style="${bad?'color:var(--bad)':''}">${escH(msg||'')}</p></div>`;
 }
 async function obLogin(){
@@ -1862,7 +1863,51 @@ async function obLogin(){
     else{sbStore(null);m.textContent='Signed in, but this account is not the owner, so it cannot add questions.';m.style.color='var(--bad)';btn.disabled=false;}
   }catch(e){m.textContent='Could not reach the server. Check your connection and try again.';m.style.color='var(--bad)';btn.disabled=false;}
 }
+async function obForgot(){
+  const em=document.getElementById('ob-email').value.trim(),m=document.getElementById('ob-msg');
+  if(!em){m.textContent='Type your email above first, then tap Forgot password.';m.style.color='var(--bad)';return;}
+  m.style.color='';m.textContent='Sending...';
+  try{
+    const back=location.origin+location.pathname;
+    const r=await fetch(SB.url+'/auth/v1/recover?redirect_to='+encodeURIComponent(back),{method:'POST',headers:{apikey:SB.key,'Content-Type':'application/json'},body:JSON.stringify({email:em})});
+    if(r.status===429){m.textContent='Too many requests. Wait a few minutes and try again.';m.style.color='var(--bad)';return;}
+    m.textContent='If that email has an account, a reset link is on its way. Open it on this phone. Check spam too.';
+  }catch(e){m.textContent='Could not reach the server. Try again.';m.style.color='var(--bad)';}
+}
+function renderOwnerReset(tok,ref){
+  clearTimer();view='ownerlogin';R=null;renderTop();
+  $screen.innerHTML=`<h2 class="sec" style="margin-top:0">Set a new password</h2>
+   <div class="owf" style="margin-top:10px">
+    <label>New password (at least 8 characters)<input id="ob-new" type="password" autocomplete="new-password"></label>
+    <label>Repeat password<input id="ob-new2" type="password" autocomplete="new-password"></label>
+    <button class="btn primary" data-act="ob-reset-go" id="ob-rgo">Save password</button>
+    <p id="ob-msg" class="foot" aria-live="polite"></p></div>`;
+  window.__obTok=tok;window.__obRef=ref;
+}
+async function obReset(){
+  const a=document.getElementById('ob-new').value,b2=document.getElementById('ob-new2').value,m=document.getElementById('ob-msg'),btn=document.getElementById('ob-rgo');
+  if(a.length<8){m.textContent='Use at least 8 characters.';m.style.color='var(--bad)';return;}
+  if(a!==b2){m.textContent='The two passwords do not match.';m.style.color='var(--bad)';return;}
+  btn.disabled=true;m.style.color='';m.textContent='Saving...';
+  try{
+    const r=await fetch(SB.url+'/auth/v1/user',{method:'PUT',headers:{apikey:SB.key,Authorization:'Bearer '+window.__obTok,'Content-Type':'application/json'},body:JSON.stringify({password:a})});
+    if(!r.ok){const j=await r.json().catch(()=>({}));m.textContent=(j.msg||j.message||'Could not save the password. The link may have expired. Request a new one.');m.style.color='var(--bad)';btn.disabled=false;return;}
+    sbStore({access_token:window.__obTok,refresh_token:window.__obRef||'',expires_at:Math.floor(Date.now()/1000)+3000});
+    if(await sbCheckOwner()){BANK.canEdit=true;await sbRefresh();OW.tab='add';OW.edit=null;renderOwner();}
+    else{sbStore(null);renderOwnerLogin('Password saved. Sign in now.');}
+  }catch(e){m.textContent='Could not reach the server. Try again.';m.style.color='var(--bad)';btn.disabled=false;}
+}
+function obHash(){
+  const h=location.hash.replace(/^#/,'');if(!h)return false;
+  const q=new URLSearchParams(h);
+  if(q.get('type')==='recovery'&&q.get('access_token')){try{history.replaceState(null,'',location.pathname);}catch(e){}renderOwnerReset(q.get('access_token'),q.get('refresh_token'));return true;}
+  if(q.get('error_description')){try{history.replaceState(null,'',location.pathname);}catch(e){}renderOwnerLogin('That reset link has expired or was already used. Tap Forgot password to get a new one.',true);return true;}
+  if(h==='owner'){renderOwnerLogin();return true;}
+  return false;
+}
 function obAct(a,b){
+  if(a==='ob-forgot'){obForgot();return true;}
+  if(a==='ob-reset-go'){obReset();return true;}
   if(a==='ob-login'){if(BANK.canEdit)renderOwner();else renderOwnerLogin();return true;}
   if(a==='ob-login-go'){obLogin();return true;}
   if(a==='ob-logout'){
@@ -1880,7 +1925,7 @@ if(!SB)fetch('custom-questions.json',{cache:'no-store'}).then(r=>r.ok?r.json():[
   rebuildBank();
 }).catch(()=>{});
 initBackend();
-if(SB&&location.hash==='#owner')renderOwnerLogin();
+if(SB){obHash();window.addEventListener('hashchange',obHash);}
 </script>
 
 </body></html>
