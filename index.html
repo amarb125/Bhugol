@@ -1880,6 +1880,7 @@ if(!SB)fetch('custom-questions.json',{cache:'no-store'}).then(r=>r.ok?r.json():[
   rebuildBank();
 }).catch(()=>{});
 initBackend();
+if(SB&&location.hash==='#owner')renderOwnerLogin();
 </script>
 
 </body></html>
