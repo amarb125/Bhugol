@@ -18,12 +18,15 @@ The map loads satellite tiles from the address in `config.js`.
 - Keep the attribution text. Providers require it.
 If tiles cannot load, the game falls back to the built-in map (zoom limited to 400x).
 
-## Adding questions
-Edit `custom-questions.json` and upload it again. Each entry:
-`{"cat":"nature","clue":"...","lat":12.34,"lon":56.78,"label":"Unique answer name"}`
-Categories: sport, heritage, nature, industry, world. Set `"on":false` to switch one off.
-Answer names must be unique. The owner panel in the Claude artifact needs Claude's
-database and does not run on a normal website.
+## Adding questions (owner only)
+Open the game and tap **Owner login** at the bottom of the home screen. Sign in with the owner account
+(amarbhardwaj61102@gmail.com, same password as your Supabase login for that email). You can then:
+add questions (tap the globe or type coordinates), bulk import, edit, disable or delete your questions,
+and hide built-in ones. Changes are live for all players the next time they open the game.
+Only the owner account can change anything. This is enforced by the database, not just the page.
+Tables: `bq_questions`, `bq_hidden`, `bq_owner` in Supabase project `jxgikzpfwihmpsdnunyf`.
+To change who the owner is, edit the single row in `bq_owner` in the Supabase SQL editor.
+If the Supabase connection is removed from `config.js`, the game falls back to `custom-questions.json`.
 
 ## Notes
 - Progress and streaks are saved in the player's own browser only.

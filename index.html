@@ -647,6 +647,7 @@ function renderHome(){
    <h3 class="sec">${t('weak')}</h3>
    ${weak.length?`<div class="weak">${weak.map(w=>`<div class="wrow"><span>${rn(w.k)}</span><div class="wbar"><i style="width:${Math.round(w.acc*100)}%"></i></div><span class="mono">${Math.round(w.acc*100)}%</span></div>`).join('')}</div>`:`<p class="empty">${t('weakEmpty')}</p>`}
    <h3 class="sec">${t('regionKey')}</h3>${keyHTML()}
+   ${(!BANK.canEdit&&window.BHUGOL_BACKEND)?'<p class="foot"><button class="ghost" data-act="ob-login">Owner login</button></p>':''}
    ${BANK.canEdit?`<h3 class="sec">Owner</h3><div class="chips"><button class="chip" data-act="owner">Manage questions<small>${BANK.custom.length} custom &middot; ${BANK.hidden.size} hidden</small></button></div>`:''}
    <p class="foot">${t('note')} ${t('clueLang')}</p>`;
 }
@@ -1632,8 +1633,8 @@ async function initOwner(){
 }
 function renderOwner(){
   clearTimer();view='owner';R=null;renderTop();
-  const tabs=[['add',OW.edit?'Edit':'Add'],['mine','Mine ('+BANK.custom.length+')'],['built','Built-in'],['map','Map']];
-  $screen.innerHTML=`<h2 class="sec" style="margin-top:0">Owner tools</h2>
+  const tabs=[['add',OW.edit?'Edit':'Add'],['mine','Mine ('+BANK.custom.length+')'],['built','Built-in']];
+  $screen.innerHTML=`<div class="owrow" style="align-items:center"><h2 class="sec" style="margin:0">Owner tools</h2><button class="ghost" data-act="ob-logout" style="flex:0 0 auto">Sign out</button></div>
    <div class="seg" role="group" aria-label="Owner sections">${tabs.map(x=>`<button data-act="ow-tab" data-v="${x[0]}" aria-pressed="${OW.tab===x[0]}">${x[1]}</button>`).join('')}</div>
    <div id="owmsg" class="foot" aria-live="polite" style="min-height:1.2em;margin:8px 0"></div><div id="owbody"></div>`;
   renderOwnerBody();
@@ -1727,6 +1728,7 @@ async function owImport(){
   if(ok){document.getElementById('ow-bulk').value='';}
 }
 function ownerAct(a,b){
+  if(a.slice(0,3)==='ob-')return obAct(a,b);
   if(a==='owner'){OW.tab='add';OW.edit=null;renderOwner();return true;}
   if(a.slice(0,3)!=='ow-')return false;
   if(a==='ow-tab'){OW.tab=b.dataset.v;if(OW.tab!=='add')OW.edit=null;OW.confirm=null;renderOwner();return true;}
@@ -1759,11 +1761,125 @@ renderHome();
 setTimeout(()=>{try{ensureTexture();}catch(e){}},500);
 setTimeout(()=>{try{ensureDetail();}catch(e){}},2500);
 initOwner();
-fetch('custom-questions.json',{cache:'no-store'}).then(r=>r.ok?r.json():[]).then(a=>{
+/* ---------- owner login and shared question database (website build) ---------- */
+const SB=window.BHUGOL_BACKEND||null;
+const SBS={s:null},sbCache={q:[],h:[],loaded:false},sbSubs={q:[],h:[]};
+function sbSess(j){return{access_token:j.access_token,refresh_token:j.refresh_token,expires_at:j.expires_at||Math.floor(Date.now()/1000)+(j.expires_in||3600)};}
+function sbStore(s){SBS.s=s;try{if(s)localStorage.setItem('bq-sb-session',JSON.stringify(s));else localStorage.removeItem('bq-sb-session');}catch(e){}}
+async function sbToken(){
+  const s=SBS.s;if(!s)return null;
+  if(s.expires_at*1000-Date.now()<60000){
+    try{
+      const r=await fetch(SB.url+'/auth/v1/token?grant_type=refresh_token',{method:'POST',headers:{apikey:SB.key,'Content-Type':'application/json'},body:JSON.stringify({refresh_token:s.refresh_token})});
+      if(!r.ok)throw new Error('refresh');
+      sbStore(sbSess(await r.json()));
+    }catch(e){sbStore(null);return null;}
+  }
+  return SBS.s.access_token;
+}
+async function sbFetch(path,opt){
+  opt=opt||{};const tok=await sbToken();
+  const h=Object.assign({apikey:SB.key,'Content-Type':'application/json'},opt.headers||{});
+  if(tok)h.Authorization='Bearer '+tok;
+  const r=await fetch(SB.url+path,Object.assign({},opt,{headers:h}));
+  const tx=await r.text();
+  if(!r.ok){const e=new Error(tx||String(r.status));e.status=r.status;throw e;}
+  return tx?JSON.parse(tx):null;
+}
+const clean=s=>String(s==null?'':s).replace(/[<>]/g,'');
+const qmap=r=>({cat:r.cat,clue:clean(r.clue),label:clean(r.label),lat:r.lat,lon:r.lon,on:r.enabled,ts:Date.parse(r.created_at)||0});
+async function sbRefresh(){
+  try{
+    const qs=await sbFetch('/rest/v1/bq_questions?select=*&order=created_at.desc&limit=1000');
+    const hs=await sbFetch('/rest/v1/bq_hidden?select=label&limit=1000');
+    sbCache.q=qs||[];sbCache.h=(hs||[]).map(x=>x.label);sbCache.loaded=true;
+    sbSubs.q.forEach(f=>f());sbSubs.h.forEach(f=>f());
+  }catch(e){}
+}
+const sbDb={
+  collection(){return{
+    onSnapshot(cb){const f=()=>cb({docs:sbCache.q.map(r=>({id:r.id,data:()=>qmap(r)}))});sbSubs.q.push(f);if(sbCache.loaded)f();return()=>{};},
+    add:async d=>{await sbFetch('/rest/v1/bq_questions',{method:'POST',headers:{Prefer:'return=minimal'},body:JSON.stringify({cat:d.cat,clue:d.clue,label:d.label,lat:d.lat,lon:d.lon,enabled:d.on!==false})});await sbRefresh();}
+  };},
+  doc(p){
+    const parts=p.split('/'),c=parts[0],id=parts[1];
+    if(c==='questions')return{
+      update:async d=>{const b={};['cat','clue','label','lat','lon'].forEach(k=>{if(k in d)b[k]=d[k];});if('on' in d)b.enabled=d.on;
+        await sbFetch('/rest/v1/bq_questions?id=eq.'+encodeURIComponent(id),{method:'PATCH',headers:{Prefer:'return=minimal'},body:JSON.stringify(b)});await sbRefresh();},
+      delete:async()=>{await sbFetch('/rest/v1/bq_questions?id=eq.'+encodeURIComponent(id),{method:'DELETE'});await sbRefresh();}
+    };
+    if(id==='hidden')return{
+      onSnapshot(cb){const f=()=>cb({exists:true,data:()=>({labels:sbCache.h})});sbSubs.h.push(f);if(sbCache.loaded)f();return()=>{};},
+      set:async d=>{
+        const want=new Set(d.labels||[]),have=new Set(sbCache.h);
+        const add=[...want].filter(x=>!have.has(x)),del=[...have].filter(x=>!want.has(x));
+        if(add.length)await sbFetch('/rest/v1/bq_hidden',{method:'POST',headers:{Prefer:'return=minimal'},body:JSON.stringify(add.map(label=>({label})))});
+        for(const l of del)await sbFetch('/rest/v1/bq_hidden?label=eq.'+encodeURIComponent(l),{method:'DELETE'});
+        await sbRefresh();}
+    };
+    return{onSnapshot(){return()=>{};},set:async()=>{},update:async()=>{},delete:async()=>{}};
+  }
+};
+async function sbCheckOwner(){
+  try{const r=await sbFetch('/rest/v1/rpc/bq_is_owner',{method:'POST',body:'{}'});return r===true;}catch(e){return false;}
+}
+function initBackend(){
+  if(!SB)return;
+  try{const s=JSON.parse(localStorage.getItem('bq-sb-session')||'null');if(s&&s.access_token)SBS.s=s;}catch(e){}
+  BANK.db=sbDb;
+  sbDb.collection().onSnapshot(s=>{
+    BANK.custom=s.docs.map(d=>Object.assign({id:d.id},d.data())).filter(c=>c&&CATS[c.cat]&&isFinite(c.lat)&&isFinite(c.lon)&&c.clue&&c.label);
+    rebuildBank();if(view==='owner'&&(OW.tab==='mine'||OW.tab==='built'))renderOwnerBody();
+  });
+  sbDb.doc('settings/hidden').onSnapshot(s=>{
+    BANK.hidden=new Set(s.data().labels||[]);rebuildBank();if(view==='owner'&&OW.tab==='built')renderOwnerBody();
+  });
+  sbRefresh().then(async()=>{
+    if(SBS.s&&await sbCheckOwner()){BANK.canEdit=true;if(view==='home')renderHome();}
+  });
+}
+function renderOwnerLogin(msg,bad){
+  clearTimer();view='ownerlogin';R=null;renderTop();
+  let em='';try{em=localStorage.getItem('bq-owner-email')||'';}catch(e){}
+  $screen.innerHTML=`<h2 class="sec" style="margin-top:0">Owner login</h2>
+   <p class="foot">Only the owner account can add or change questions.</p>
+   <div class="owf" style="margin-top:10px">
+    <label>Email<input id="ob-email" type="email" autocomplete="username" value="${escH(em)}"></label>
+    <label>Password<input id="ob-pass" type="password" autocomplete="current-password"></label>
+    <button class="btn primary" data-act="ob-login-go" id="ob-go">Sign in</button>
+    <p id="ob-msg" class="foot" aria-live="polite" style="${bad?'color:var(--bad)':''}">${escH(msg||'')}</p></div>`;
+}
+async function obLogin(){
+  const em=document.getElementById('ob-email').value.trim(),pw=document.getElementById('ob-pass').value,m=document.getElementById('ob-msg'),btn=document.getElementById('ob-go');
+  if(!em||!pw){m.textContent='Enter your email and password.';m.style.color='var(--bad)';return;}
+  btn.disabled=true;m.style.color='';m.textContent='Signing in...';
+  try{
+    const r=await fetch(SB.url+'/auth/v1/token?grant_type=password',{method:'POST',headers:{apikey:SB.key,'Content-Type':'application/json'},body:JSON.stringify({email:em,password:pw})});
+    if(!r.ok){m.textContent='Wrong email or password.';m.style.color='var(--bad)';btn.disabled=false;return;}
+    sbStore(sbSess(await r.json()));
+    try{localStorage.setItem('bq-owner-email',em);}catch(e){}
+    if(await sbCheckOwner()){BANK.canEdit=true;await sbRefresh();OW.tab='add';OW.edit=null;renderOwner();}
+    else{sbStore(null);m.textContent='Signed in, but this account is not the owner, so it cannot add questions.';m.style.color='var(--bad)';btn.disabled=false;}
+  }catch(e){m.textContent='Could not reach the server. Check your connection and try again.';m.style.color='var(--bad)';btn.disabled=false;}
+}
+function obAct(a,b){
+  if(a==='ob-login'){if(BANK.canEdit)renderOwner();else renderOwnerLogin();return true;}
+  if(a==='ob-login-go'){obLogin();return true;}
+  if(a==='ob-logout'){
+    const t0=SBS.s&&SBS.s.access_token;
+    if(t0)fetch(SB.url+'/auth/v1/logout',{method:'POST',headers:{apikey:SB.key,Authorization:'Bearer '+t0}}).catch(()=>{});
+    sbStore(null);BANK.canEdit=false;renderHome();return true;
+  }
+  return false;
+}
+document.getElementById('app').addEventListener('keydown',ev=>{if(ev.key==='Enter'&&ev.target&&ev.target.id==='ob-pass'){ev.preventDefault();obLogin();}});
+
+if(!SB)fetch('custom-questions.json',{cache:'no-store'}).then(r=>r.ok?r.json():[]).then(a=>{
   if(!Array.isArray(a)||BANK.db)return;
   BANK.custom=a.filter(c=>c&&CATS[c.cat]&&isFinite(c.lat)&&isFinite(c.lon)&&c.clue&&c.label).map((c,i)=>Object.assign({id:'f'+i},c));
   rebuildBank();
 }).catch(()=>{});
+initBackend();
 </script>
 
 </body></html>
