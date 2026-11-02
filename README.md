@@ -32,3 +32,9 @@ If the Supabase connection is removed from `config.js`, the game falls back to `
 - Progress and streaks are saved in the player's own browser only.
 - Boundaries use the official Indian depiction, but check them against Survey of India before launch.
 - Credits: NASA Blue Marble, Natural Earth, udit-001/india-maps-data (no licence file in that repo; confirm before launch).
+
+## Install as an Android app (PWA)
+
+Open the site in Chrome on Android, then tap **Install app** (or the browser menu, then *Install app* / *Add to Home screen*). It gets a home-screen icon, opens full-screen and the game itself works offline. Live satellite tiles and the owner login still need internet.
+
+After changing the site, bump `VERSION` in `sw.js` so installed copies pick up the update.

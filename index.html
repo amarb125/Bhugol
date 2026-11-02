@@ -2,6 +2,13 @@
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <style>html{color-scheme:light}body{margin:0;font:14px system-ui,sans-serif}img{max-width:100%}[hidden]{display:none!important}</style>
 <script src="config.js"></script>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#0B5D7A">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Bhugol">
+<link rel="icon" type="image/png" href="icons/favicon-64.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 </head><body>
 <title>Bhugol Quest</title>
 <meta name="claude:viewport-fit-sides" content="cover">
@@ -1928,4 +1935,20 @@ initBackend();
 if(SB){obHash();window.addEventListener('hashchange',obHash);}
 </script>
 
+<button id="pwaInstall" hidden style="position:fixed;right:12px;bottom:calc(12px + env(safe-area-inset-bottom));z-index:99999;background:#0B5D7A;color:#fff;border:0;border-radius:999px;padding:10px 16px;font:700 14px system-ui,sans-serif;box-shadow:0 2px 10px rgba(0,0,0,.3)">Install app</button>
+<script>
+/* PWA: offline shell + Android "Install app" button */
+(function(){
+  if('serviceWorker' in navigator){
+    window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){});});
+  }
+  var ev=null,b=document.getElementById('pwaInstall');
+  window.addEventListener('beforeinstallprompt',function(e){e.preventDefault();ev=e;b.hidden=false;});
+  b.addEventListener('click',function(){
+    if(!ev)return; b.hidden=true; ev.prompt();
+    ev.userChoice.finally(function(){ev=null;});
+  });
+  window.addEventListener('appinstalled',function(){b.hidden=true;ev=null;});
+})();
+</script>
 </body></html>
