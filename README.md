@@ -38,3 +38,7 @@ If the Supabase connection is removed from `config.js`, the game falls back to `
 Open the site in Chrome on Android, then tap **Install app** (or the browser menu, then *Install app* / *Add to Home screen*). It gets a home-screen icon, opens full-screen and the game itself works offline. Live satellite tiles and the owner login still need internet.
 
 After changing the site, bump `VERSION` in `sw.js` so installed copies pick up the update.
+
+## Map styles
+
+The globe opens as a label-free road map (OpenStreetMap data, CARTO Voyager "no labels"). The **Sat** / **Map** button on the globe switches to satellite imagery and back, and remembers the choice. To use another provider for the road map, set `mapUrl`, `mapAttribution` and `mapMaxZoom` inside `window.BHUGOL_TILES` in `config.js`. CARTO's free basemaps are meant for non-commercial use, so check their terms (or use MapTiler or Mapbox) before charging for the app.

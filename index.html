@@ -200,6 +200,7 @@ h3.sec{font:800 1rem var(--font-display);margin:0 0 10px;text-transform:uppercas
 .gwrap canvas{display:block;width:100%;height:100%;touch-action:none;cursor:grab}
 .gwrap canvas:active{cursor:grabbing}
 .gctl{position:absolute;right:10px;top:10px;display:grid;gap:8px}
+.gbs{font-size:.72rem!important;font-weight:800}
 .gb{width:44px;height:44px;border-radius:12px;border:1.5px solid var(--line);background:var(--surface);font-weight:700;font-size:1.2rem;line-height:1;display:grid;place-items:center;padding:0}
 .gprompt{font-size:clamp(1.15rem,5vw,1.5rem);min-height:2.4em;margin-bottom:12px}
 .gfb .h span:first-child{font:800 1.3rem/1.15 var(--font-display)}
@@ -1015,7 +1016,7 @@ function paintTexture(g,R){
   const T=lv[L],td=T.d,tw=T.w,th=T.h,k1=tw/(2*PI),k2=th/PI,inv=1/Rs;
   const lam=g.lon*D2R,phi=g.lat*D2R,cl=Math.cos(lam),sl=Math.sin(lam),cp=Math.cos(phi),sp=Math.sin(phi);
   TL.frame++;TL.cx=g.lon;TL.cy=g.lat;
-  const tz=Math.min(TZMAX,Math.round(Math.log2(2*PI*Rs/256))),tm=!!(TL.tpl&&!TL.off&&tz>=5);
+  const tz=Math.min(tMax(),Math.round(Math.log2(2*PI*Rs/256))),tm=!!(tUrl()&&!TL.off&&tz>=(MAPST()?2:5));
   g.tilesOn=tm&&TL.ok>0;
   let o=0;
   for(let py=0;py<H;py++){
@@ -1089,9 +1090,23 @@ function drawPin(ctx,x,y,color){
 /* ---------- live satellite tiles (deep zoom) ---------- */
 const BT=window.BHUGOL_TILES||{};
 const TZMAX=BT.maxZoom||16,ZMAX=6000;
-function zmax(){return(TL.tpl&&!TL.off&&TL.ok>0)?ZMAX:400;}
+function zmax(){return(tUrl()&&!TL.off&&TL.ok>0)?ZMAX:400;}
 const TL_DEFAULT={tpl:BT.url||'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',attr:BT.attribution||'Imagery © Esri, Maxar, Earthstar Geographics'};
-const TL={tpl:TL_DEFAULT.tpl,attr:TL_DEFAULT.attr,cache:new Map(),pend:[],fly:0,frame:0,ok:0,err:0,off:false,cx:0,cy:0};
+const TL={tpl:TL_DEFAULT.tpl,attr:TL_DEFAULT.attr,cache:new Map(),pend:[],fly:0,frame:0,ok:0,err:0,off:false,cx:0,cy:0,style:'map'};
+/* Map style: 'map' = label-free road map (OpenStreetMap data, CARTO Voyager no-labels), 'sat' = satellite. */
+const MAPT={tpl:BT.mapUrl||'https://{s}.basemaps.cartocdn.com/rastertiles/voyager_nolabels/{z}/{x}/{y}.png',attr:BT.mapAttribution||'\u00A9 OpenStreetMap contributors \u00A9 CARTO',maxZoom:BT.mapMaxZoom||19};
+try{const v=localStorage.getItem('bq-mapstyle');if(v==='sat'||v==='map')TL.style=v;}catch(e){}
+function MAPST(){return TL.style==='map';}
+function tUrl(){return MAPST()?MAPT.tpl:TL.tpl;}
+function tAttr(){return MAPST()?MAPT.attr:TL.attr;}
+function tMax(){return MAPST()?MAPT.maxZoom:TZMAX;}
+function styleBtn(){const m=MAPST();return `<button class="gb gbs" data-act="gstyle" aria-label="${m?'Switch to satellite':'Switch to map'}">${m?'Sat':'Map'}</button>`;}
+function setStyle(v){
+  TL.style=v;TL.cache.clear();TL.pend=[];TL.err=0;TL.off=false;
+  try{localStorage.setItem('bq-mapstyle',v);}catch(e){}
+  document.querySelectorAll('.gbs').forEach(b=>{b.outerHTML=styleBtn();});
+  if(GL)kick();
+}
 function tileKey(z,x,y){return(z*65536+x)*65536+y;}
 function tileGet(z,x,y,req){
   const k=tileKey(z,x,y);let t=TL.cache.get(k);
@@ -1138,7 +1153,7 @@ function tileLoad(t){
   };
   im.onerror=()=>fin(false);
   setTimeout(()=>fin(false),12000);
-  im.src=TL.tpl.replace('{z}',t.z).replace('{x}',t.x).replace('{y}',t.y);
+  im.src=tUrl().replace('{s}','abcd'[(t.x+t.y)&3]).replace('{z}',t.z).replace('{x}',t.x).replace('{y}',t.y);
 }
 function tilePump(){
   const cut=TL.frame-3;
@@ -1221,8 +1236,8 @@ function drawDetail(ctx,g,V,w,h){
   if(z>=4){const p=new Path2D();tracePolys(p,DET.ur,V);ctx.globalAlpha=0.6*cl((z-4)/4);ctx.fillStyle='#C9B48F';ctx.fill(p,'evenodd');}
   if(z>=4){const p=new Path2D();traceLines(p,DET.riv,V);ctx.globalAlpha=0.9*cl((z-3)/3);ctx.strokeStyle='#5FB2E0';ctx.lineWidth=lw*1.1;ctx.stroke(p);}
   }
-  if(z>=5){const p=new Path2D();traceLines(p,DET.a1,V);ctx.globalAlpha=0.55*cl((z-5)/3);ctx.strokeStyle='#F1F5F2';ctx.lineWidth=lw*0.8;ctx.stroke(p);}
-  if(z>=8){
+  if(z>=5&&!(real&&MAPST())){const p=new Path2D();traceLines(p,DET.a1,V);ctx.globalAlpha=0.55*cl((z-5)/3);ctx.strokeStyle='#F1F5F2';ctx.lineWidth=lw*0.8;ctx.stroke(p);}
+  if(z>=8&&!(real&&MAPST())){
     const p=new Path2D();
     for(const c in DET.dist)for(const d of DET.dist[c]){
       for(const pl of d.polys){
@@ -1384,7 +1399,7 @@ function drawGlobe(){
     ctx.strokeStyle='rgba(0,0,0,0.7)';ctx.lineWidth=4;ctx.beginPath();ctx.moveTo(14,g.h-26);ctx.lineTo(14,g.h-20);ctx.lineTo(14+bw,g.h-20);ctx.lineTo(14+bw,g.h-26);ctx.stroke();
     ctx.strokeStyle='#fff';ctx.lineWidth=1.6;ctx.stroke();
     ctx.lineWidth=3;ctx.strokeStyle='rgba(0,0,0,0.7)';ctx.strokeText(lab,14,g.h-30);ctx.fillStyle='#fff';ctx.fillText(lab,14,g.h-30);
-    if(g.tilesOn&&TL.attr){ctx.textAlign='right';ctx.font='10px '+C.font;ctx.lineWidth=3;ctx.strokeText(TL.attr,g.w-8,g.h-8);ctx.fillText(TL.attr,g.w-8,g.h-8);}
+    if(g.tilesOn&&tAttr()){ctx.textAlign='right';ctx.font='10px '+C.font;ctx.lineWidth=3;ctx.strokeText(tAttr(),g.w-8,g.h-8);ctx.fillText(tAttr(),g.w-8,g.h-8);}
     ctx.restore();
   }
 }
@@ -1485,7 +1500,7 @@ function renderGlobeShell(){
    <div class="hud" id="ghud"></div>
    <p class="prompt gprompt" id="gclue"></p>
    <div class="gwrap" id="gwrap"><canvas id="gc" aria-label="Globe. Drag to turn, tap to drop a pin."></canvas>
-     <div class="gctl"><button class="gb" data-act="gzoom" data-v="in" aria-label="${t('zoomIn')}">+</button><button class="gb" data-act="gzoom" data-v="out" aria-label="${t('zoomOut')}">&minus;</button><button class="gb" data-act="ghome" aria-label="${t('recentre')}">&#9678;</button></div></div>
+     <div class="gctl"><button class="gb" data-act="gzoom" data-v="in" aria-label="${t('zoomIn')}">+</button><button class="gb" data-act="gzoom" data-v="out" aria-label="${t('zoomOut')}">&minus;</button><button class="gb" data-act="ghome" aria-label="${t('recentre')}">&#9678;</button>${styleBtn()}</div></div>
    <div class="ctl"><button class="btn primary block" id="lockbtn" data-act="glock" disabled>${t('lock')}</button></div>
    <p class="foot" id="hintline"></p><div id="fb" aria-live="polite"></div>`;
   if(!initGlobe()){document.getElementById('gwrap').innerHTML=`<p class="empty" style="padding:16px">${t('globeFail')}</p>`;return;}
@@ -1581,6 +1596,7 @@ document.getElementById('app').addEventListener('click',ev=>{
   if(a==='fmt'){S.fmt=b.dataset.v;save();renderHome();return;}
   if(a==='glock'){globeLock();return;}
   if(a==='gnext'){globeNext();return;}
+  if(a==='gstyle'){setStyle(MAPST()?'sat':'map');return;}
   if(a==='gzoom'){zoomBy(b.dataset.v==='in'?2.4:1/2.4);return;}
   if(a==='ghome'){const v=homeView();animTo(v.lon,v.lat,v.zoom,600);return;}
   if(a==='rnext'){roundNext();return;}
@@ -1658,7 +1674,7 @@ function renderOwnerBody(){
       <label>Answer name (shown after the guess)<input id="ow-label" maxlength="80" placeholder="e.g. Gol Gumbaz, Vijayapura"></label>
       <div class="owrow"><label>Latitude<input id="ow-lat" inputmode="decimal" data-ow="ll" placeholder="16.8302"></label><label>Longitude<input id="ow-lon" inputmode="decimal" data-ow="ll" placeholder="75.7358"></label></div>
       <p class="foot">Tap the globe to set the answer location, or type coordinates. Zoom in for a precise spot.</p>
-      <div class="gwrap" id="gwrap"><canvas id="gc" aria-label="Pick the answer location"></canvas><div class="gctl"><button class="gb" data-act="gzoom" data-v="in" aria-label="Zoom in">+</button><button class="gb" data-act="gzoom" data-v="out" aria-label="Zoom out">&minus;</button></div></div>
+      <div class="gwrap" id="gwrap"><canvas id="gc" aria-label="Pick the answer location"></canvas><div class="gctl"><button class="gb" data-act="gzoom" data-v="in" aria-label="Zoom in">+</button><button class="gb" data-act="gzoom" data-v="out" aria-label="Zoom out">&minus;</button>${styleBtn()}</div></div>
       <p class="foot" id="ow-where"></p>
       <div class="owrow"><button class="btn primary" data-act="ow-save">${OW.edit?'Save changes':'Add question'}</button>${OW.edit?'<button class="btn" data-act="ow-clear">Cancel edit</button>':''}</div>
       <details class="owdet"><summary>Bulk import</summary>

@@ -1,5 +1,5 @@
 /* Bhugol Quest service worker. Bump VERSION to force clients to refetch the app shell. */
-const VERSION = 'bq-v1';
+const VERSION = 'bq-v2';
 const SHELL = ['./', 'index.html', 'config.js', 'custom-questions.json', 'manifest.webmanifest',
   'icons/icon-192.png', 'icons/icon-512.png', 'icons/maskable-512.png', 'icons/apple-touch-icon.png'];
 const FONT_CACHE = 'bq-fonts';
