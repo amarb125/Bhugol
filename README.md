@@ -41,4 +41,6 @@ After changing the site, bump `VERSION` in `sw.js` so installed copies pick up t
 
 ## Map styles
 
-The globe opens as a label-free road map (OpenStreetMap data, CARTO Voyager "no labels"). The **Sat** / **Map** button on the globe switches to satellite imagery and back, and remembers the choice. To use another provider for the road map, set `mapUrl`, `mapAttribution` and `mapMaxZoom` inside `window.BHUGOL_TILES` in `config.js`. CARTO's free basemaps are meant for non-commercial use, so check their terms (or use MapTiler or Mapbox) before charging for the app.
+The globe can show a label-free road map (OpenStreetMap data, CARTO Voyager "no labels") as well as satellite. CARTO needs a free API key: get one at https://carto.com/basemaps/apikey/ and paste it into `mapKey` in `config.js`. Until a key is set the game shows satellite only and hides the **Sat / Map** button. Once set, the globe opens as the road map and the button switches styles (the choice is remembered).
+
+Keep the attribution that the map shows. CARTO's free tier is 5 million tile requests a month for non-commercial use and 1 million for commercial use. To use another provider, set `mapUrl`, `mapAttribution` and `mapMaxZoom` in `config.js` instead.

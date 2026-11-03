@@ -5,7 +5,10 @@ window.BHUGOL_TILES = {
   // Mapbox:    'https://api.mapbox.com/v4/mapbox.satellite/{z}/{x}/{y}@2x.jpg90?access_token=YOUR_MAPBOX_TOKEN'
   url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
   attribution: 'Imagery © Esri, Maxar, Earthstar Geographics',
-  maxZoom: 16
+  maxZoom: 16,
+  // Label-free road map (CARTO). Get a free key at https://carto.com/basemaps/apikey/ and paste it here.
+  // Until a key is set the game shows satellite only.
+  mapKey: ''
 };
 /* Shared question database (Supabase). The publishable key is safe to publish:
    database rules allow everyone to read questions and only the owner account to change them. */

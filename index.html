@@ -1094,13 +1094,14 @@ function zmax(){return(tUrl()&&!TL.off&&TL.ok>0)?ZMAX:400;}
 const TL_DEFAULT={tpl:BT.url||'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',attr:BT.attribution||'Imagery © Esri, Maxar, Earthstar Geographics'};
 const TL={tpl:TL_DEFAULT.tpl,attr:TL_DEFAULT.attr,cache:new Map(),pend:[],fly:0,frame:0,ok:0,err:0,off:false,cx:0,cy:0,style:'map'};
 /* Map style: 'map' = label-free road map (OpenStreetMap data, CARTO Voyager no-labels), 'sat' = satellite. */
-const MAPT={tpl:BT.mapUrl||'https://{s}.basemaps.cartocdn.com/rastertiles/voyager_nolabels/{z}/{x}/{y}.png',attr:BT.mapAttribution||'\u00A9 OpenStreetMap contributors \u00A9 CARTO',maxZoom:BT.mapMaxZoom||19};
+const MAPT={tpl:BT.mapUrl||(BT.mapKey?'https://basemaps.cartocdn.com/rastertiles/voyager_nolabels/{z}/{x}/{y}.png?key='+encodeURIComponent(BT.mapKey):''),attr:BT.mapAttribution||'\u00A9 OpenStreetMap contributors \u00A9 CARTO',maxZoom:BT.mapMaxZoom||19};
 try{const v=localStorage.getItem('bq-mapstyle');if(v==='sat'||v==='map')TL.style=v;}catch(e){}
-function MAPST(){return TL.style==='map';}
+function MAPOK(){return !!MAPT.tpl;}
+function MAPST(){return TL.style==='map'&&MAPOK();}
 function tUrl(){return MAPST()?MAPT.tpl:TL.tpl;}
 function tAttr(){return MAPST()?MAPT.attr:TL.attr;}
 function tMax(){return MAPST()?MAPT.maxZoom:TZMAX;}
-function styleBtn(){const m=MAPST();return `<button class="gb gbs" data-act="gstyle" aria-label="${m?'Switch to satellite':'Switch to map'}">${m?'Sat':'Map'}</button>`;}
+function styleBtn(){if(!MAPOK())return '';const m=MAPST();return `<button class="gb gbs" data-act="gstyle" aria-label="${m?'Switch to satellite':'Switch to map'}">${m?'Sat':'Map'}</button>`;}
 function setStyle(v){
   TL.style=v;TL.cache.clear();TL.pend=[];TL.err=0;TL.off=false;
   try{localStorage.setItem('bq-mapstyle',v);}catch(e){}
